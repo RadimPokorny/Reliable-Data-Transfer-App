@@ -2,7 +2,7 @@
 CXX = g++
 CXXFLAGS = -std=c++20 -Wall -Wextra -Werror
 TARGET = ipk-rdt
-SOURCES = src/main.cpp
+SOURCES = src/*.cpp
 
 # Výchozí cíl - sestavení projektu
 all: $(TARGET)
