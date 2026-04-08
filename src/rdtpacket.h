@@ -9,8 +9,6 @@
 #include <cstring>
 #include "rdt_protocol.h"
 
-
-
 class RDTPacket {
 public:
     Header header;
@@ -47,7 +45,7 @@ public:
 
     std::vector<uint8_t> serialize() {
         // Calculating the data and header length
-        size_t totalSize = sizeof(Header) + payload.size();
+        const size_t totalSize = sizeof(Header) + payload.size();
         std::vector<uint8_t> buffer(totalSize);
 
         // Null the checksum and calculate
@@ -63,9 +61,6 @@ public:
         }
         return buffer;
     }
-
 };
-
-
 
 #endif //IPK_PROJ2_RDTHEADER_H
