@@ -5,17 +5,16 @@
 #ifndef IPK_PROJ2_SERVER_H
 #define IPK_PROJ2_SERVER_H
 #include <vector>
-#include "main.cpp"
 #include "rdtpacket.h"
 #include "udpsocket.h"
-
+#include "config.h"
 
 class server {
 public:
     void run(Config& config) {
         UDPSocket socket;
         if (!socket.bind(config.port, config.address)) {
-            std:cerr << "Failed to bind port " << config.port << std::endl;
+            std::cerr << "Failed to bind port " << config.port << std::endl;
             return;
         }
 

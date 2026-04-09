@@ -4,9 +4,8 @@
 
 #ifndef IPK_PROJ2_RDT_PROTOCOL_H
 #define IPK_PROJ2_RDT_PROTOCOL_H
-#include <cstdint>
 
-#endif //IPK_PROJ2_RDT_PROTOCOL_H
+#include <cstdint>
 
 static constexpr uint8_t FLAG_SYN = 1;
 static constexpr uint8_t FLAG_ACK = 2;
@@ -17,5 +16,7 @@ struct Header {
     uint32_t ack;
     uint32_t conn_id;
     uint16_t checksum;
-    uint8_t flags; // SYN=1, ACK=2, FIN=4
+    uint8_t flags;
 } __attribute__((packed));
+
+#endif //IPK_PROJ2_RDT_PROTOCOL_H

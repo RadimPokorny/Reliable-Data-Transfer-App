@@ -5,7 +5,7 @@
 #ifndef IPK_PROJ2_CLIENT_H
 #define IPK_PROJ2_CLIENT_H
 #include "udpsocket.h"
-#include "main.cpp"
+#include "config.h"
 #include "rdtpacket.h"
 
 
@@ -14,7 +14,7 @@ public:
     void run(Config& config) {
         UDPSocket socket;
         if (!socket.connect(config.address, config.port)) {
-            std:cerr << "Connection failed!" << std::endl;
+            std::cerr << "Connection failed!" << std::endl;
             return;
         }
 
