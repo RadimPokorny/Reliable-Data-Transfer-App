@@ -2,7 +2,6 @@
 // Created by radim on 03.04.2026.
 //
 
-#include "main.h"
 #include <iostream>
 #include "config.h"
 #include "server.h"
