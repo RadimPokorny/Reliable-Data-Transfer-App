@@ -61,6 +61,27 @@ public:
         }
         return buffer;
     }
+
+    bool deserialize(const uint8_t* buffer, size_t size) {
+
+        // Is at least packet bigger than header?
+        if (size < sizeof(Header))
+            return false;
+
+        // Get the header in the front of the buffer
+        std::memcpy(&header, buffer, sizeof(Header));
+
+        size_t payloadSize = size - sizeof(Header);
+
+        // If there is data, store them into the payload
+        if (payloadSize > 0) {
+            payload.assign(buffer + sizeof(Header), buffer + size);
+        } else {
+            payload.clear();
+        }
+
+        return true;
+    }
 };
 
 #endif //IPK_PROJ2_RDTHEADER_H
