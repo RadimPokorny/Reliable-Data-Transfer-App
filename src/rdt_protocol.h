@@ -8,6 +8,10 @@
 
 #endif //IPK_PROJ2_RDT_PROTOCOL_H
 
+static constexpr uint8_t FLAG_SYN = 1;
+static constexpr uint8_t FLAG_ACK = 2;
+static constexpr uint8_t FLAG_FIN = 4;
+
 struct Header {
     uint32_t seq_number;
     uint32_t ack;
