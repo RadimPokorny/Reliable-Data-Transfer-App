@@ -31,16 +31,6 @@ public:
                     response.header.conn_id = incPacket.header.conn_id;
                     socket.send(response.serialize());
                 }
-
-                // Handshake procedure
-                if (incPacket.header.flags == 1) {
-                    // Receive SYN
-                    RDTPacket synACK;
-                    synACK.header.conn_id = incPacket.header.conn_id;
-                    synACK.header.flags = 3; // ACK + SYN
-                    socket.send(synACK.serialize());
-                    std::cout << "Handshake start" << std::endl;
-                }
             }
         }
     }
