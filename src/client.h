@@ -115,7 +115,7 @@ public:
         while (!connected && attempts < MAX_ATTEMPTS) {
             socket.send(synPacket.serialize());
             attempts++;
-            std::cout << "Attempt: " << attempts << "..."<<std::endl;
+            std::cerr << "Attempt: " << attempts << "..."<<std::endl;
             std::vector<uint8_t> response;
 
             if (socket.receive(response) > 0) {
@@ -133,7 +133,7 @@ public:
                     ackPacket.header.flags = 2;
                     ackPacket.header.ack = responsePacket.header.seq_number + 1;
                     socket.send(ackPacket.serialize());
-                    std::cout << "Connected to the server!" << std::endl;
+                    std::cerr << "Connected to the server!" << std::endl;
                     connected = true;
                 }
             }

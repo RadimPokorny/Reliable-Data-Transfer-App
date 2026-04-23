@@ -23,7 +23,7 @@ public:
             return;
         }
 
-        std::cout << "Server is listening on port " << config.port << std::endl;
+        std::cerr << "Server is listening on port " << config.port << std::endl;
 
         std::ofstream fs;
         std::ostream* output = &std::cout;
@@ -91,7 +91,7 @@ public:
                     finAck.header.flags = 2; // ACK the FIN
                     finAck.header.conn_id = incPacket.header.conn_id;
                     socket.send(finAck.serialize());
-                    std::cout << "Received FIN ACK, shutting down..." << std::endl;
+                    std::cerr << "Received FIN ACK, shutting down..." << std::endl;
                     break; // End transmission
                 }
             }
