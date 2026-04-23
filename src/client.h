@@ -13,6 +13,7 @@
 #include <csignal>
 extern volatile sig_atomic_t stop_flag;
 
+const int MAX_ATTEMPTS = 5;
 
 class client {
 private:
@@ -60,6 +61,28 @@ private:
             }
             currentSeq += bytesRead;
         }
+        if (!stop_flag) {
+            std::cerr << "File sent. Now the sending FIN..." << std::endl;
+            RDTPacket finPacket;
+            finPacket.header.conn_id = conn_id;
+            finPacket.header.flags = FLAG_FIN;
+            finPacket.header.seq_number = currentSeq;
+
+            bool finAcked = false;
+            int finAttempts = 0;
+            while (!finAcked && finAttempts < MAX_ATTEMPTS && !stop_flag) {
+                socket.send(finPacket.serialize());
+                std::vector<uint8_t> resBuffer;
+                if (socket.receive(resBuffer) > 0) {
+                    RDTPacket res;
+                    if (res.deserialize(resBuffer.data(), resBuffer.size()) && (res.header.flags & FLAG_ACK)) {
+                        finAcked = true;
+                        std::cerr << "FIN accepted by the server." << std::endl;
+                    }
+                }
+                finAttempts++;
+            }
+        }
     }
 public:
     void run(Config& config) {
@@ -84,7 +107,6 @@ public:
 
         bool connected = false;
         int attempts = 0;
-        const int MAX_ATTEMPTS = 5;
 
         std::cerr << "Starting handshake..." << std::endl;
 
