@@ -9,9 +9,56 @@
 #include "rdtpacket.h"
 #include <random>
 #include <ctime>
+#include <fstream>
 
 
 class client {
+private:
+    void sendFile(UDPSocket& socket, Config& config, uint32_t conn_id, uint32_t start_seq) {
+        std::ifstream fs;
+        std::istream* input = &std::cin;
+
+        if (config.input_file != "-") {
+            fs.open(config.input_file, std::ios::binary);
+            if (!fs.is_open()) {
+                std::cerr << "Error: Could not open the file." << std::endl;
+                exit(1);
+            }
+            input = &fs;
+        }
+
+        std::vector<uint8_t> fileBuffer(1185);
+        uint32_t currentSeq = start_seq;
+
+        while (input->good()) {
+            input->read(reinterpret_cast<char*>(fileBuffer.data()), fileBuffer.size());
+            size_t bytesRead = input->gcount();
+            if (bytesRead == 0) break;
+
+            RDTPacket dataPacket;
+            dataPacket.header.conn_id = conn_id;
+            dataPacket.header.seq_number = currentSeq;
+            dataPacket.header.flags = 0;
+            dataPacket.payload.assign(fileBuffer.begin(), fileBuffer.begin() + bytesRead);
+
+            // Basic stop and wait (TODO: complete the implementation)
+            bool acked = false;
+            while (!acked) {
+                socket.send(dataPacket.serialize());
+
+                std::vector<uint8_t> ackBuf;
+                if (socket.receive(ackBuf) > 0) {
+                    RDTPacket res;
+                    if (res.deserialize(ackBuf.data(), ackBuf.size()) &&
+                        (res.header.flags & 2) &&
+                        res.header.ack >= (currentSeq + bytesRead)) {
+                        acked = true;
+                    }
+                }
+            }
+            currentSeq += bytesRead;
+        }
+    }
 public:
     void run(Config& config) {
 
@@ -70,6 +117,9 @@ public:
         if (!connected) {
             std::cerr << "Failed to connect after " << MAX_ATTEMPTS << " attempts." << std::endl;
             exit(1);
+        }
+        else {
+            sendFile(socket, config, synPacket.header.conn_id, synPacket.header.seq_number + 1);
         }
     }
 };
