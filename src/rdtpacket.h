@@ -42,6 +42,9 @@ public:
         // Null the checksum and calculate
         header.checksum = 0;
 
+        // Copy the entire structure into the buffer
+        std::memcpy(buffer.data(), &header, sizeof(Header));
+
         // Data and header into the buffer
         if (!payload.empty()) {
             std::memcpy(buffer.data() + sizeof(Header), payload.data(), payload.size());
