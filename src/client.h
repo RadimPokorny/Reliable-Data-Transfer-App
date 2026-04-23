@@ -10,6 +10,8 @@
 #include <random>
 #include <ctime>
 #include <fstream>
+#include <csignal>
+extern volatile sig_atomic_t stop_flag;
 
 
 class client {
@@ -30,7 +32,7 @@ private:
         std::vector<uint8_t> fileBuffer(1185);
         uint32_t currentSeq = start_seq;
 
-        while (input->good()) {
+        while (input->good() && !stop_flag) {
             input->read(reinterpret_cast<char*>(fileBuffer.data()), fileBuffer.size());
             size_t bytesRead = input->gcount();
             if (bytesRead == 0) break;
@@ -43,7 +45,7 @@ private:
 
             // Basic stop and wait (TODO: complete the implementation)
             bool acked = false;
-            while (!acked) {
+            while (!acked && !stop_flag) {
                 socket.send(dataPacket.serialize());
 
                 std::vector<uint8_t> ackBuf;

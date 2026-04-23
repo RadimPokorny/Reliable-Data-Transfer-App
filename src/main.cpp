@@ -6,10 +6,24 @@
 #include "config.h"
 #include "server.h"
 #include "client.h"
+#include <csignal>
 using namespace std;
+
+// Global variable to stop the program
+volatile sig_atomic_t stop_flag = 0;
+
+// Function to handle the termination
+void handle_signal(int sig) {
+    (void)sig;
+    stop_flag = 1;
+}
 
 int main(int argc, char** argv) {
     Config cfg;
+
+    // Handlers active
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
 
     if (!cfg.parse(argc, argv)) {
         std::cerr << "Error: Invalid arguments. Use -h for help." << std::endl;

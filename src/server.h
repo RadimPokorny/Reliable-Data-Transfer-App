@@ -9,6 +9,8 @@
 #include "rdtpacket.h"
 #include "udpsocket.h"
 #include "config.h"
+#include <csignal>
+extern volatile sig_atomic_t stop_flag;
 
 class server {
 public:
@@ -29,7 +31,9 @@ public:
             output = &fs;
         }
 
-        while (true) {
+        socket.setTimeout(config.timeout);
+
+        while (!stop_flag) {
             std::vector<uint8_t> buffer;
             if (socket.receive(buffer) > 0) {
                 RDTPacket incPacket;
