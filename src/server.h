@@ -24,8 +24,13 @@ public:
             std::vector<uint8_t> buffer;
             if (socket.receive(buffer) > 0) {
                 RDTPacket incPacket;
-                if (!incPacket.deserialize(buffer.data(), buffer.size()))
-                    continue;
+                if (incPacket.deserialize(buffer.data(), buffer.size()) && incPacket.header.flags == 1) {
+                    std::cerr << "Received SYN, sending SYN-ACK" << std::endl;
+                    RDTPacket response;
+                    response.header.flags = 3; // SYN + ACK = 3
+                    response.header.conn_id = incPacket.header.conn_id;
+                    socket.send(response.serialize());
+                }
 
                 // Handshake procedure
                 if (incPacket.header.flags == 1) {
