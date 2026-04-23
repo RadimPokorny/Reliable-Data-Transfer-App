@@ -10,6 +10,7 @@
 #include "udpsocket.h"
 #include "config.h"
 #include <csignal>
+#include <map>
 extern volatile sig_atomic_t stop_flag;
 
 class server {
@@ -42,6 +43,8 @@ public:
                 }
 
                 if (incPacket.header.flags == 1) {
+                    // Init the expected seq. number
+                    expectedSeq = incPacket.header.seq_number + 1;
                     // Handle SYN
                     RDTPacket response;
                     response.header.flags = 3; // SYN-ACK
@@ -50,15 +53,36 @@ public:
                     socket.send(response.serialize());
                 }
                 else if (incPacket.header.flags == 0) {
-                    // Handle DATA
-                    output->write(reinterpret_cast<const char*>(incPacket.payload.data()), incPacket.payload.size());
-                    output->flush();
+                    uint32_t seq = incPacket.header.seq_number;
+                    size_t payloadSize = incPacket.payload.size();
 
-                    // Send ACK
+                    if (seq == expectedSeq) {
+                        // If we got what we want we will write it
+                        output->write(reinterpret_cast<const char*>(incPacket.payload.data()), payloadSize);
+                        output->flush();
+                        expectedSeq += payloadSize;
+
+                        // Are there another packets in the buffer?
+                        auto it = receiveBuffer.begin();
+                        while (it != receiveBuffer.end() && it->first == expectedSeq) {
+                            output->write(reinterpret_cast<const char*>(it->second.data()), it->second.size());
+                            output->flush();
+                            expectedSeq += it->second.size();
+                            it = receiveBuffer.erase(it); // Writen will get off the buffer
+                        }
+                    }
+                    else if (seq > expectedSeq) {
+                        // If the packet got ahead we will store it to the buffer
+                        if (receiveBuffer.find(seq) == receiveBuffer.end()) {
+                            receiveBuffer[seq] = incPacket.payload;
+                        }
+                    }
+
+                    // Send ack with info about the next one
                     RDTPacket ack;
-                    ack.header.flags = 2;
+                    ack.header.flags = FLAG_ACK;
                     ack.header.conn_id = incPacket.header.conn_id;
-                    ack.header.ack = incPacket.header.seq_number + incPacket.payload.size();
+                    ack.header.ack = expectedSeq;
                     socket.send(ack.serialize());
                 }
                 else if (incPacket.header.flags == 4) {
@@ -73,6 +97,10 @@ public:
             }
         }
     }
+private:
+    // Variable to show what is next in order
+    uint32_t expectedSeq = 0;
+    std::map<uint32_t, std::vector<uint8_t>> receiveBuffer;
 };
 
 
