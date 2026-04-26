@@ -96,6 +96,7 @@ public:
     // Method to receive. Returns the amount of the bytes (-1 if timeout)
     ssize_t receive(std::vector<uint8_t>& buffer) {
         uint8_t temp[1500]; // Max ethernet frame amount
+        addr_len = sizeof(remote_addr);
         ssize_t n = recvfrom(fd, temp, sizeof(temp), 0,
                              (struct sockaddr*)&remote_addr, &addr_len);
         if (n > 0) {
