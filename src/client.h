@@ -112,7 +112,7 @@ public:
 
         // Send a SYN and wait for SYN-ACK
 
-        while (!connected && attempts < MAX_ATTEMPTS) {
+        while (!connected && attempts < MAX_ATTEMPTS && !stop_flag) {
             socket.send(synPacket.serialize());
             attempts++;
             std::cerr << "Attempt: " << attempts << "..."<<std::endl;
