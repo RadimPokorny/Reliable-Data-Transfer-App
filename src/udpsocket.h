@@ -99,6 +99,13 @@ public:
         addr_len = sizeof(remote_addr);
         ssize_t n = recvfrom(fd, temp, sizeof(temp), 0,
                              (struct sockaddr*)&remote_addr, &addr_len);
+
+        if (n < 0) {
+            if (errno == EINTR) {
+                return -2; // Special code for signal
+            }
+            return -1; // Normal timeout
+        }
         if (n > 0) {
             buffer.assign(temp, temp + n);
         }

@@ -94,7 +94,7 @@ public:
         UDPSocket socket;
         if (!socket.connect(config.address, config.port)) {
             std::cerr << "Connection failed!" << std::endl;
-            exit(1);
+            return;
         }
 
         socket.setTimeout(config.timeout);
@@ -140,7 +140,7 @@ public:
         }
         if (!connected) {
             std::cerr << "Failed to connect after " << MAX_ATTEMPTS << " attempts." << std::endl;
-            exit(1);
+            return;
         }
         else {
             sendFile(socket, config, synPacket.header.conn_id, synPacket.header.seq_number + 1);
