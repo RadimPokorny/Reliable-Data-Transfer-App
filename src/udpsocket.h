@@ -112,7 +112,7 @@ public:
         return n;
     }
 
-    void setTimeout(int seconds) {
+    void setTimeout(double seconds) {
         struct timeval tv;
         tv.tv_sec = static_cast<time_t>(seconds);
         tv.tv_usec = static_cast<suseconds_t>((seconds - tv.tv_sec) * 1000000);
