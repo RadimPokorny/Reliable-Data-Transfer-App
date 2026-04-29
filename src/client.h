@@ -11,7 +11,12 @@
 #include <ctime>
 #include <fstream>
 #include <csignal>
+#include <map>
+#include <iostream>
+
 extern volatile sig_atomic_t stop_flag;
+
+constexpr double DELAY = 0.2;
 
 const int MAX_ATTEMPTS = 5;
 
@@ -21,6 +26,7 @@ private:
         std::ifstream fs;
         std::istream* input = &std::cin;
 
+        // Handle the file or STDin input
         if (config.input_file != "-") {
             fs.open(config.input_file, std::ios::binary);
             if (!fs.is_open()) {
@@ -38,7 +44,7 @@ private:
         constexpr size_t windowSize = 64;
 
         while (!endOfFile || !window.empty()) {
-            // Fullfiling the window
+            // Fill the window
             while (window.size() < windowSize && !endOfFile) {
                 std::vector<uint8_t> fileBuffer(1185);
                 input->read(reinterpret_cast<char*>(fileBuffer.data()), (std::streamsize)fileBuffer.size());
@@ -62,63 +68,42 @@ private:
 
             // ACK receive
             if (!window.empty()) {
-                // If the window is full, or we are at the end of the file, we use the standard timeout
-                if (window.size() >= windowSize || endOfFile) {
-                    socket.setTimeout(config.timeout);
-                } else {
-                    // Testing number for now
-                    socket.setTimeout(0.005);
-                }
+                socket.setTimeout(DELAY);
 
                 std::vector<uint8_t> ackBuf;
                 ssize_t n = socket.receive(ackBuf);
 
                 if (n > 0) {
-                    RDTPacket res;
-                    if (res.deserialize(ackBuf.data(), ackBuf.size()) && (res.header.flags & FLAG_ACK)) {
-
-                        if (res.header.ack > lastAck) {
-                            // New ACK -> slide in the window
-                            lastAck = res.header.ack;
-                            dupAckCount = 0;
-                            auto it = window.begin();
-                            while (it != window.end() && (int32_t)(lastAck - it->first) > 0) {
-                                it = window.erase(it);
-                            }
-                        }
-                        else if (res.header.ack == lastAck && !window.empty()) {
-                            // Duplicit ACK, we must retransmit fast
-                            dupAckCount++;
-                            if (dupAckCount == 3) {
-                                socket.send(window.begin()->second.serialize());
-                            }
-                        }
-
-                        // We want to get the rest of the buffer fast
-                        socket.setTimeout(0.001);
-                        while (socket.receive(ackBuf) > 0) {
-                            if (res.deserialize(ackBuf.data(), ackBuf.size()) && (res.header.flags & FLAG_ACK)) {
-                                if (res.header.ack > lastAck) {
-                                    lastAck = res.header.ack;
-                                    dupAckCount = 0;
-                                    auto it2 = window.begin();
-                                    while (it2 != window.end() && (int32_t)(lastAck - it2->first) > 0) {
-                                        it2 = window.erase(it2);
-                                    }
+                        do {
+                        RDTPacket res;
+                        if (res.deserialize(ackBuf.data(), ackBuf.size()) && (res.header.flags & FLAG_ACK)) {
+                            // Confirm the new data
+                            if ((int32_t)(res.header.ack - lastAck) > 0) {
+                                lastAck = res.header.ack;
+                                dupAckCount = 0;
+                                auto it = window.begin();
+                                while (it != window.end() && (int32_t)(lastAck - it->first) > 0) {
+                                    it = window.erase(it);
+                                }
+                                // Handle duplicate ACKs
+                            } else if (res.header.ack == lastAck && !window.empty()) {
+                                if (++dupAckCount == 3) {
+                                    socket.send(window.begin()->second.serialize());
                                 }
                             }
                         }
-                    }
+                            // Check for the other ACKs in short time
+                            socket.setTimeout(0.001);
+                        } while (socket.receive(ackBuf) > 0);
+                    // Handle timeout
                 } else if (n == -1) {
-                    // Retransmit if we waited 'long' (full window or EOF)
                     if (!window.empty()) {
-                        for (auto& [seq, packet] : window) {
-                            socket.send(packet.serialize());
-                        }
+                        socket.send(window.begin()->second.serialize());
                     }
                 }
             }
         }
+        // Terminate the connection
         if (!stop_flag) {
             std::cerr << "File sent. Now the sending FIN..." << std::endl;
             RDTPacket finPacket;
@@ -128,7 +113,7 @@ private:
 
             bool finAcked = false;
             int finAttempts = 0;
-            socket.setTimeout(config.timeout);
+            socket.setTimeout(DELAY);
             while (!finAcked && finAttempts < MAX_ATTEMPTS && !stop_flag) {
                 socket.send(finPacket.serialize());
                 std::vector<uint8_t> resBuffer;
@@ -156,7 +141,7 @@ public:
             return;
         }
 
-        socket.setTimeout(config.timeout);
+        socket.setTimeout(DELAY);
 
         // Handshake phase
         RDTPacket synPacket;
@@ -206,7 +191,5 @@ public:
         }
     }
 };
-
-
 
 #endif //IPK_PROJ2_CLIENT_H

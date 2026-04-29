@@ -23,7 +23,7 @@ public:
     std::string address = ""; // For server bind, for client the destination
     std::string input_file = "-";  // Default stdin
     std::string output_file = "-"; // Default stdout
-    double timeout = 0.001;               // Default timeout
+    double timeout = 0.15;               // Default timeout
 
     /*
      * Print the help of usage
