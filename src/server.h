@@ -34,6 +34,9 @@ public:
 
         socket.setTimeout(config.timeout);
 
+        this->receiveBuffer.clear();
+        bool sessionStarted = false;
+
         while (!stop_flag) {
             std::vector<uint8_t> buffer;
             if (socket.receive(buffer) > 0) {
@@ -44,7 +47,8 @@ public:
 
                 if (incPacket.header.flags == 1) {
                     // Init the expected seq. number
-                    expectedSeq = incPacket.header.seq_number + 1;
+                    this->expectedSeq = incPacket.header.seq_number + 1;
+                    sessionStarted = true;
                     // Handle SYN
                     RDTPacket response;
                     response.header.flags = 3; // SYN-ACK
@@ -53,7 +57,23 @@ public:
                     socket.send(response.serialize());
                 }
                 else if (incPacket.header.flags == 0) {
+                    if (!sessionStarted) {
+                        // ignore the data, if SYN not yet
+                        continue;
+                    }
                     uint32_t seq = incPacket.header.seq_number;
+
+                    if (seq < expectedSeq) {
+                        // We got the packet, but not ACK -> send actual expectedSeq
+                        RDTPacket oldAck;
+                        oldAck.header.flags = FLAG_ACK;
+                        oldAck.header.conn_id = incPacket.header.conn_id;
+                        oldAck.header.ack = expectedSeq;
+                        socket.send(oldAck.serialize());
+                        // Don't work with this packet anymore
+                        continue;
+                    }
+
                     size_t payloadSize = incPacket.payload.size();
 
                     if (seq == expectedSeq) {
@@ -91,6 +111,10 @@ public:
                     finAck.header.flags = 2; // ACK the FIN
                     finAck.header.conn_id = incPacket.header.conn_id;
                     socket.send(finAck.serialize());
+                    // One more FIN check
+                    socket.setTimeout(0.2);
+                    std::vector<uint8_t> dummy;
+                    socket.receive(dummy);
                     std::cerr << "Received FIN ACK, shutting down..." << std::endl;
                     break; // End transmission
                 }
