@@ -23,7 +23,7 @@ public:
     std::string address = ""; // For server bind, for client the destination
     std::string input_file = "-";  // Default stdin
     std::string output_file = "-"; // Default stdout
-    int timeout = 1;               // Default timeout
+    double timeout = 1;               // Default timeout
 
     /*
      * Print the help of usage
@@ -80,7 +80,7 @@ public:
                     break;
                 case 'w':
                     try {
-                        timeout = std::stoi(optarg);
+                        timeout = std::stod(optarg);
                         if (timeout <= 0) return false;
                     } catch (...) { return false; }
                     break;
