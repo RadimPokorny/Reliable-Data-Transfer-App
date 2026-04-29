@@ -31,17 +31,18 @@ private:
         }
 
         uint32_t nextSeq = start_seq;
-
-        const size_t windowSize = 10;
+        uint32_t lastAck = start_seq;
+        int dupAckCount = 0;
         std::map<uint32_t, RDTPacket> window;
         bool endOfFile = false;
+        constexpr size_t windowSize = 64;
 
-        while ((!endOfFile || !window.empty()) && !stop_flag) {
-
-            while (window.size() < windowSize && !endOfFile && !stop_flag) {
+        while (!endOfFile || !window.empty()) {
+            // Fullfiling the window
+            while (window.size() < windowSize && !endOfFile) {
                 std::vector<uint8_t> fileBuffer(1185);
-                input->read(reinterpret_cast<char*>(fileBuffer.data()), fileBuffer.size());
-                size_t bytesRead = input->gcount();
+                input->read(reinterpret_cast<char*>(fileBuffer.data()), (std::streamsize)fileBuffer.size());
+                size_t bytesRead = (size_t)input->gcount();
 
                 if (bytesRead == 0) {
                     endOfFile = true;
@@ -54,22 +55,68 @@ private:
                 dataPacket.header.flags = 0;
                 dataPacket.payload.assign(fileBuffer.begin(), fileBuffer.begin() + bytesRead);
 
-                // Basic stop and wait (TODO: complete the implementation)
-                bool acked = false;
-                while (!acked && !stop_flag) {
-                    socket.send(dataPacket.serialize());
+                socket.send(dataPacket.serialize());
+                window[nextSeq] = dataPacket;
+                nextSeq += bytesRead;
+            }
 
-                    std::vector<uint8_t> ackBuf;
-                    if (socket.receive(ackBuf) > 0) {
-                        RDTPacket res;
-                        if (res.deserialize(ackBuf.data(), ackBuf.size()) &&
-                            (res.header.flags & 2) &&
-                            res.header.ack >= (nextSeq + bytesRead)) {
-                            acked = true;
+            // ACK receive
+            if (!window.empty()) {
+                // If the window is full, or we are at the end of the file, we use the standard timeout
+                if (window.size() >= windowSize || endOfFile) {
+                    socket.setTimeout(config.timeout);
+                } else {
+                    // Testing number for now
+                    socket.setTimeout(0.005);
+                }
+
+                std::vector<uint8_t> ackBuf;
+                ssize_t n = socket.receive(ackBuf);
+
+                if (n > 0) {
+                    RDTPacket res;
+                    if (res.deserialize(ackBuf.data(), ackBuf.size()) && (res.header.flags & FLAG_ACK)) {
+
+                        if (res.header.ack > lastAck) {
+                            // New ACK -> slide in the window
+                            lastAck = res.header.ack;
+                            dupAckCount = 0;
+                            auto it = window.begin();
+                            while (it != window.end() && (int32_t)(lastAck - it->first) > 0) {
+                                it = window.erase(it);
                             }
+                        }
+                        else if (res.header.ack == lastAck && !window.empty()) {
+                            // Duplicit ACK, we must retransmit fast
+                            dupAckCount++;
+                            if (dupAckCount == 3) {
+                                socket.send(window.begin()->second.serialize());
+                            }
+                        }
+
+                        // We want to get the rest of the buffer fast
+                        socket.setTimeout(0.001);
+                        while (socket.receive(ackBuf) > 0) {
+                            if (res.deserialize(ackBuf.data(), ackBuf.size()) && (res.header.flags & FLAG_ACK)) {
+                                if (res.header.ack > lastAck) {
+                                    lastAck = res.header.ack;
+                                    dupAckCount = 0;
+                                    auto it2 = window.begin();
+                                    while (it2 != window.end() && it2->first < lastAck) {
+                                        it2 = window.erase(it2);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (n == -1) {
+                    // Retransmit if we waited 'long' (full window or EOF)
+                    if (!window.empty()) {
+                        for (auto& [seq, packet] : window) {
+                            socket.send(packet.serialize());
+                        }
                     }
                 }
-                nextSeq += bytesRead;
             }
         }
         if (!stop_flag) {
@@ -81,6 +128,7 @@ private:
 
             bool finAcked = false;
             int finAttempts = 0;
+            socket.setTimeout(config.timeout);
             while (!finAcked && finAttempts < MAX_ATTEMPTS && !stop_flag) {
                 socket.send(finPacket.serialize());
                 std::vector<uint8_t> resBuffer;
