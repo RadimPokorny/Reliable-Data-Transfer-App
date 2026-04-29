@@ -114,8 +114,8 @@ public:
 
     void setTimeout(int seconds) {
         struct timeval tv;
-        tv.tv_sec = seconds;
-        tv.tv_usec = 0;
+        tv.tv_sec = static_cast<time_t>(seconds);
+        tv.tv_usec = static_cast<suseconds_t>((seconds - tv.tv_sec) * 1000000);
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     }
 };
