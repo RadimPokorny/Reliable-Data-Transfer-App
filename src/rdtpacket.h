@@ -53,7 +53,7 @@ public:
         uint16_t compChecksum = calcChecksum(buffer.data(), buffer.size());
 
         // Copying the header and adding to the start of the buffer
-        std::memcpy(buffer.data() + 12, &compChecksum, sizeof(uint16_t));
+        std::memcpy(buffer.data() + offsetof(Header, checksum), &compChecksum, sizeof(uint16_t));
 
         // If there is any data, add that after the header
         return buffer;
@@ -70,15 +70,10 @@ public:
 
         uint16_t recvChecksum = header.checksum;
 
-        // Null the header to recalculate
-        Header temp_header = header;
-        temp_header.checksum = 0;
 
-        std::vector<uint8_t> check_buffer(size);
-        std::memcpy(check_buffer.data(), &temp_header, sizeof(Header));
-        std::memcpy(check_buffer.data() + sizeof(Header), data + sizeof(Header), size - sizeof(Header));
-
-        if (calcChecksum(check_buffer.data(), size) != recvChecksum) {
+        std::vector<uint8_t> temp(data, data + size);
+        std::memset(temp.data() + offsetof(Header, checksum), 0, sizeof(uint16_t));
+        if (calcChecksum(temp.data(), size) != recvChecksum) {
             std::cerr << "Packet corrupted. Checksum is corrupted." << std::endl;
             return false;
         }
