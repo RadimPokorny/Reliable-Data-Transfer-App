@@ -30,43 +30,54 @@ private:
             input = &fs;
         }
 
-        std::vector<uint8_t> fileBuffer(1185);
-        uint32_t currentSeq = start_seq;
+        uint32_t nextSeq = start_seq;
 
-        while (input->good() && !stop_flag) {
-            input->read(reinterpret_cast<char*>(fileBuffer.data()), fileBuffer.size());
-            size_t bytesRead = input->gcount();
-            if (bytesRead == 0) break;
+        const size_t windowSize = 10;
+        std::map<uint32_t, RDTPacket> window;
+        bool endOfFile = false;
 
-            RDTPacket dataPacket;
-            dataPacket.header.conn_id = conn_id;
-            dataPacket.header.seq_number = currentSeq;
-            dataPacket.header.flags = 0;
-            dataPacket.payload.assign(fileBuffer.begin(), fileBuffer.begin() + bytesRead);
+        while ((!endOfFile || !window.empty()) && !stop_flag) {
 
-            // Basic stop and wait (TODO: complete the implementation)
-            bool acked = false;
-            while (!acked && !stop_flag) {
-                socket.send(dataPacket.serialize());
+            while (window.size() < windowSize && !endOfFile && !stop_flag) {
+                std::vector<uint8_t> fileBuffer(1185);
+                input->read(reinterpret_cast<char*>(fileBuffer.data()), fileBuffer.size());
+                size_t bytesRead = input->gcount();
 
-                std::vector<uint8_t> ackBuf;
-                if (socket.receive(ackBuf) > 0) {
-                    RDTPacket res;
-                    if (res.deserialize(ackBuf.data(), ackBuf.size()) &&
-                        (res.header.flags & 2) &&
-                        res.header.ack >= (currentSeq + bytesRead)) {
-                        acked = true;
+                if (bytesRead == 0) {
+                    endOfFile = true;
+                    break;
+                }
+
+                RDTPacket dataPacket;
+                dataPacket.header.conn_id = conn_id;
+                dataPacket.header.seq_number = nextSeq;
+                dataPacket.header.flags = 0;
+                dataPacket.payload.assign(fileBuffer.begin(), fileBuffer.begin() + bytesRead);
+
+                // Basic stop and wait (TODO: complete the implementation)
+                bool acked = false;
+                while (!acked && !stop_flag) {
+                    socket.send(dataPacket.serialize());
+
+                    std::vector<uint8_t> ackBuf;
+                    if (socket.receive(ackBuf) > 0) {
+                        RDTPacket res;
+                        if (res.deserialize(ackBuf.data(), ackBuf.size()) &&
+                            (res.header.flags & 2) &&
+                            res.header.ack >= (nextSeq + bytesRead)) {
+                            acked = true;
+                            }
                     }
                 }
+                nextSeq += bytesRead;
             }
-            currentSeq += bytesRead;
         }
         if (!stop_flag) {
             std::cerr << "File sent. Now the sending FIN..." << std::endl;
             RDTPacket finPacket;
             finPacket.header.conn_id = conn_id;
             finPacket.header.flags = FLAG_FIN;
-            finPacket.header.seq_number = currentSeq;
+            finPacket.header.seq_number = nextSeq;
 
             bool finAcked = false;
             int finAttempts = 0;
