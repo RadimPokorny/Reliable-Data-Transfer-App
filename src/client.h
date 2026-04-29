@@ -102,7 +102,7 @@ private:
                                     lastAck = res.header.ack;
                                     dupAckCount = 0;
                                     auto it2 = window.begin();
-                                    while (it2 != window.end() && it2->first < lastAck) {
+                                    while (it2 != window.end() && (int32_t)(lastAck - it2->first) > 0) {
                                         it2 = window.erase(it2);
                                     }
                                 }
