@@ -74,7 +74,6 @@ public:
         std::vector<uint8_t> temp(data, data + size);
         std::memset(temp.data() + offsetof(Header, checksum), 0, sizeof(uint16_t));
         if (calcChecksum(temp.data(), size) != recvChecksum) {
-            std::cerr << "Packet corrupted. Checksum is corrupted." << std::endl;
             return false;
         }
 

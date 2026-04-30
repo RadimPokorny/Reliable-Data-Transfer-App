@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
     signal(SIGTERM, handle_signal);
 
     if (!cfg.parse(argc, argv)) {
-        std::cerr << "Error: Invalid arguments. Use -h for help." << std::endl;
+        std::cout << "Error: Invalid arguments. Use -h for help." << std::endl;
         return 1;
     }
 
@@ -37,6 +37,7 @@ int main(int argc, char** argv) {
         client clt;
         clt.run(cfg);
     }
+
 
     return 0; // Success
 }

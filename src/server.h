@@ -19,11 +19,8 @@ public:
 
         UDPSocket socket;
         if (!socket.bind(config.port, config.address)) {
-            std::cerr << "Failed to bind port " << config.port << std::endl;
             return;
         }
-
-        std::cerr << "Server is listening on port " << config.port << std::endl;
 
         std::ofstream fs;
         std::ostream* output = &std::cout;
@@ -115,7 +112,6 @@ public:
                     socket.setTimeout(0.2);
                     std::vector<uint8_t> dummy;
                     socket.receive(dummy);
-                    std::cerr << "Received FIN ACK, shutting down..." << std::endl;
                     break; // End transmission
                 }
             }

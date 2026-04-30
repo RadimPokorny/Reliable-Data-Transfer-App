@@ -30,7 +30,7 @@ private:
         if (config.input_file != "-") {
             fs.open(config.input_file, std::ios::binary);
             if (!fs.is_open()) {
-                std::cerr << "Error: Could not open the file." << std::endl;
+                std::cout << "Error: Could not open the file." << std::endl;
                 exit(1);
             }
             input = &fs;
@@ -105,7 +105,6 @@ private:
         }
         // Terminate the connection
         if (!stop_flag) {
-            std::cerr << "File sent. Now the sending FIN..." << std::endl;
             RDTPacket finPacket;
             finPacket.header.conn_id = conn_id;
             finPacket.header.flags = FLAG_FIN;
@@ -121,7 +120,6 @@ private:
                     RDTPacket res;
                     if (res.deserialize(resBuffer.data(), resBuffer.size()) && (res.header.flags & FLAG_ACK)) {
                         finAcked = true;
-                        std::cerr << "FIN accepted by the server." << std::endl;
                     }
                 }
                 finAttempts++;
@@ -137,7 +135,6 @@ public:
 
         UDPSocket socket;
         if (!socket.connect(config.address, config.port)) {
-            std::cerr << "Connection failed!" << std::endl;
             return;
         }
 
@@ -152,14 +149,11 @@ public:
         bool connected = false;
         int attempts = 0;
 
-        std::cerr << "Starting handshake..." << std::endl;
-
         // Send a SYN and wait for SYN-ACK
 
         while (!connected && attempts < MAX_ATTEMPTS && !stop_flag) {
             socket.send(synPacket.serialize());
             attempts++;
-            std::cerr << "Attempt: " << attempts << "..."<<std::endl;
             std::vector<uint8_t> response;
 
             if (socket.receive(response) > 0) {
@@ -168,7 +162,6 @@ public:
                     (responsePacket.header.flags == 3) &&
                     (responsePacket.header.conn_id == synPacket.header.conn_id)) {
 
-                    std::cerr << "SYN-ACK received. Sending ACK..." << std::endl;
 
 
                     // Final acknowledge ACK
@@ -177,13 +170,11 @@ public:
                     ackPacket.header.flags = 2;
                     ackPacket.header.ack = responsePacket.header.seq_number + 1;
                     socket.send(ackPacket.serialize());
-                    std::cerr << "Connected to the server!" << std::endl;
                     connected = true;
                 }
             }
         }
         if (!connected) {
-            std::cerr << "Failed to connect after " << MAX_ATTEMPTS << " attempts." << std::endl;
             return;
         }
         else {
