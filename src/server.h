@@ -13,7 +13,10 @@
 #include <map>
 extern volatile sig_atomic_t stop_flag;
 
+constexpr int FLUSH_DENSITY = 100;
+
 class server {
+    size_t packetsSinceLastFlush = 0;
 public:
     void run(Config& config) {
 
@@ -76,14 +79,25 @@ public:
                     if (seq == expectedSeq) {
                         // If we got what we want we will write it
                         output->write(reinterpret_cast<const char*>(incPacket.payload.data()), payloadSize);
-                        output->flush();
+                        packetsSinceLastFlush++;
+
+                        if (packetsSinceLastFlush >= FLUSH_DENSITY) {
+                            output->flush();
+                            packetsSinceLastFlush = 0;
+                        }
                         expectedSeq += payloadSize;
 
                         // Are there another packets in the buffer?
                         auto it = receiveBuffer.begin();
                         while (it != receiveBuffer.end() && it->first == expectedSeq) {
                             output->write(reinterpret_cast<const char*>(it->second.data()), it->second.size());
-                            output->flush();
+                            packetsSinceLastFlush++;
+
+                            if (packetsSinceLastFlush >= FLUSH_DENSITY) {
+                                output->flush();
+                                packetsSinceLastFlush = 0;
+                            }
+
                             expectedSeq += it->second.size();
                             it = receiveBuffer.erase(it); // Writen will get off the buffer
                         }
