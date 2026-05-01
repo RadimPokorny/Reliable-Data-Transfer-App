@@ -5,113 +5,185 @@ import hashlib
 import socket
 import random
 import threading
+import sys
 
 BINARY = "./ipk-rdt"
 SERVER_PORT = 5555
 PROXY_PORT = 6666
 
-class BiDirectionalProxy:
-    def __init__(self, listen_port, target_addr, target_port, loss=0, delay=0, corrupt=0):
+class AdvancedProxy:
+    def __init__(self, listen_port, target_addr, target_port, loss=0, delay=0, jitter=0, corrupt=0, dup=0):
         self.listen_port = listen_port
         self.target_addr = target_addr
         self.target_port = target_port
         self.loss = loss / 100.0
         self.delay = delay / 1000.0
+        self.jitter = jitter / 1000.0
         self.corrupt = corrupt / 100.0
+        self.dup = dup / 100.0
         self.running = False
         self.client_address = None
 
     def start(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        infos = socket.getaddrinfo(self.target_addr, self.target_port, socket.AF_UNSPEC, socket.SOCK_DGRAM)
+        family, socktype, proto, canonname, sockaddr = infos[0]
+
+        self.sock = socket.socket(family, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind(('127.0.0.1', self.listen_port))
+
+        bind_addr = '::' if family == socket.AF_INET6 else '0.0.0.0'
+        self.sock.bind((bind_addr, self.listen_port))
+
         self.sock.settimeout(0.1)
         self.running = True
 
         def proxy_loop():
             while self.running:
                 try:
-                    data, addr = self.sock.recvfrom(2048)
+                    data, addr = self.sock.recvfrom(4096)
+                    is_from_server = (addr[1] == self.target_port)
 
-                    if addr[1] != self.target_port:
+                    if not is_from_server:
                         self.client_address = addr
-                        dest = (self.target_addr, self.target_port)
-                        apply_faults = True
+                        dest = sockaddr
                     else:
                         if not self.client_address: continue
                         dest = self.client_address
-                        apply_faults = False
 
-                    if apply_faults and random.random() < self.loss: continue
+                    if not is_from_server and random.random() < self.loss: continue
 
-                    if apply_faults and self.corrupt > 0 and random.random() < self.corrupt:
-                        b_data = bytearray(data)
-                        b_data[random.randint(0, len(b_data)-1)] ^= 0xFF
-                        data = bytes(b_data)
+                    current_wait = self.delay
+                    if not is_from_server and self.jitter > 0:
+                        current_wait += random.uniform(-self.jitter, self.jitter)
 
-                    def send_delayed(d, target):
-                        if apply_faults and self.delay > 0: time.sleep(self.delay)
-                        try: self.sock.sendto(d, target)
-                        except: pass
+                    def process_and_send(d, target, apply_faults, wait_time):
+                        if apply_faults and self.corrupt > 0 and random.random() < self.corrupt:
+                            b_data = bytearray(d)
+                            b_data[random.randint(0, len(b_data)-1)] ^= 0xFF
+                            d = bytes(b_data)
 
-                    threading.Thread(target=send_delayed, args=(data, dest), daemon=True).start()
-                except: continue
+                        if wait_time > 0:
+                            time.sleep(max(0, wait_time))
+
+                        try:
+                            self.sock.sendto(d, target)
+                        except:
+                            pass
+
+                    count = 2 if (not is_from_server and random.random() < self.dup) else 1
+                    for _ in range(count):
+                        threading.Thread(
+                            target=process_and_send,
+                            args=(data, dest, not is_from_server, current_wait),
+                            daemon=True
+                        ).start()
+                except socket.timeout:
+                    continue
+                except Exception:
+                    continue
 
         threading.Thread(target=proxy_loop, daemon=True).start()
 
     def stop(self):
         self.running = False
-        time.sleep(0.2)
-        self.sock.close()
+        time.sleep(0.3)
+        if hasattr(self, 'sock'):
+            self.sock.close()
 
-def get_md5(filename):
-    if not os.path.exists(filename) or os.path.getsize(filename) == 0:
-        if os.path.exists(filename): return "empty_file"
-        return None
-    return hashlib.md5(open(filename, 'rb').read()).hexdigest()
-
-def run_scenario(name, size_mb, loss=0, delay=0, corrupt=0):
-    print(f"  [{name:12}] ", end="", flush=True)
+def run_scenario(name, size_mb, loss=0, delay=0, jitter=0, corrupt=0, dup=0, ipv6=False, use_pipes=False):
+    print(f"  [{name:15}] ", end="", flush=True)
+    addr = "::1" if ipv6 else "127.0.0.1"
     test_in, test_out = "test_in.bin", "test_out.bin"
     if os.path.exists(test_out): os.remove(test_out)
 
-    with open(test_in, "wb") as f:
-        f.write(os.urandom(int(size_mb * 1024 * 1024)) if size_mb > 0 else b"")
+    data_to_send = os.urandom(int(size_mb * 1024 * 1024)) if size_mb > 0 else b""
+    with open(test_in, "wb") as f: f.write(data_to_send)
 
-    proxy = BiDirectionalProxy(PROXY_PORT, "127.0.0.1", SERVER_PORT, loss, delay, corrupt)
+    proxy = AdvancedProxy(PROXY_PORT, addr, SERVER_PORT, loss, delay, jitter, corrupt, dup)
     proxy.start()
 
-    srv = subprocess.Popen([BINARY, "-s", "-p", str(SERVER_PORT), "-o", test_out], stderr=subprocess.PIPE)
-    time.sleep(0.5)
+    srv_cmd = [BINARY, "-s", "-p", str(SERVER_PORT)]
+    clt_cmd = [BINARY, "-c", "-a", addr, "-p", str(PROXY_PORT)]
 
+    received_data = b""
     start_t = time.time()
-    try:
-        subprocess.run([BINARY, "-c", "-a", "127.0.0.1", "-p", str(PROXY_PORT), "-i", test_in],
-                       timeout=15, stderr=subprocess.PIPE)
-    except: pass
 
-    time.sleep(1.0)
-    if srv.poll() is None:
-        srv.terminate()
-        srv.wait()
+    try:
+        if use_pipes:
+            srv_proc = subprocess.Popen(srv_cmd + ["-o", "-"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            time.sleep(0.4)
+
+            clt_proc = subprocess.Popen(clt_cmd + ["-i", "-"], stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+            def feed_client():
+                try:
+                    clt_proc.stdin.write(data_to_send)
+                    clt_proc.stdin.close()
+                except:
+                    pass
+
+            feeder = threading.Thread(target=feed_client)
+            feeder.start()
+
+            try:
+                received_data, _ = srv_proc.communicate(timeout=15)
+                clt_proc.wait(timeout=5)
+            finally:
+                feeder.join()
+        else:
+            srv_proc = subprocess.Popen(srv_cmd + ["-o", test_out], stderr=subprocess.DEVNULL)
+            time.sleep(0.4)
+            clt_proc = subprocess.Popen(clt_cmd + ["-i", test_in], stderr=subprocess.DEVNULL)
+
+            clt_proc.wait(timeout=60)
+            time.sleep(1.0)
+            srv_proc.terminate()
+            srv_proc.wait()
+
+            if os.path.exists(test_out):
+                with open(test_out, "rb") as f: received_data = f.read()
+
+    except subprocess.TimeoutExpired:
+        print("\033[91mTIMEOUT\033[0m ", end="")
+        received_data = b"TIMEOUT"
+        clt_proc.kill()
+        srv_proc.kill()
+    except Exception as e:
+        print(f"\033[91mERROR: {e}\033[0m ", end="")
+        received_data = b"ERROR"
 
     proxy.stop()
 
-    in_md5 = get_md5(test_in)
-    out_md5 = get_md5(test_out)
-    passed = out_md5 is not None and in_md5 == out_md5
-
+    passed = (received_data == data_to_send)
     status = "\033[92mPASS\033[0m" if passed else "\033[91mFAIL\033[0m"
     print(f"{status} ({time.time() - start_t:.1f}s)")
     return passed
 
 if __name__ == "__main__":
-    print("\n  IPK-RDT TEST HARNESS")
-    print("  " + "─" * 40)
+    print("\n  IPK-RDT COMPREHENSIVE TESTER")
+    print("  " + "─" * 50)
+
     results = [
-        run_scenario("Clean", 0.1),
-        run_scenario("Empty", 0),
-        run_scenario("Loss 5%", 0.1, loss=5)
+        run_scenario("IPv4_Clean", 0.5),
+        run_scenario("IPv6_Clean", 0.5, ipv6=True),
+        run_scenario("Empty_File", 0),
+        run_scenario("1MB File", 1),
+        run_scenario("2MB File", 2),
+        run_scenario("5MB File", 5),
+        run_scenario("10MB File", 10),
+        run_scenario("20MB File", 20),
+        run_scenario("50MB File", 50),
+        run_scenario("100MB File", 100),
+        run_scenario("Pipes_Test", 0.2, use_pipes=True),
+        run_scenario("High_Loss_15%", 0.3, loss=15),
+        run_scenario("Duplication", 0.3, dup=15),
+        run_scenario("Jitter_Reorder", 0.3, delay=20, jitter=20),
+        run_scenario("Corruption", 0.2, corrupt=2),
+        run_scenario("Stress_Big", 2.0, loss=5, delay=10, dup=5),
+        run_scenario("Hell_Mode", 0.5, loss=10, delay=30, jitter=20, corrupt=1, dup=10)
     ]
-    print("  " + "─" * 40)
-    print(f"  Result: {sum(results)}/{len(results)}\n")
+
+    print("  " + "─" * 50)
+    print(f"  Final Score: {sum(results)}/{len(results)}")
+    if all(results): print("  ALL CRITERIA MET! 🚀")
+    sys.exit(0 if all(results) else 1)
