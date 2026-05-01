@@ -18,7 +18,7 @@ extern volatile sig_atomic_t stop_flag;
 
 constexpr double DELAY = 0.2;
 
-constexpr double FAST_RECV_DELAY = 0.001;
+constexpr double FAST_RECV_DELAY = 0.0001;
 
 const int MAX_ATTEMPTS = 5;
 
