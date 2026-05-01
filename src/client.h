@@ -18,6 +18,8 @@ extern volatile sig_atomic_t stop_flag;
 
 constexpr double DELAY = 0.2;
 
+constexpr double FAST_RECV_DELAY = 0.001;
+
 const int MAX_ATTEMPTS = 5;
 
 class client {
@@ -42,11 +44,13 @@ private:
         std::map<uint32_t, RDTPacket> window;
         bool endOfFile = false;
         constexpr size_t windowSize = 64;
+        std::vector<uint8_t> fileBuffer(1185);
+
+        socket.setTimeout(DELAY);
 
         while (!endOfFile || !window.empty()) {
             // Fill the window
             while (window.size() < windowSize && !endOfFile) {
-                std::vector<uint8_t> fileBuffer(1185);
                 input->read(reinterpret_cast<char*>(fileBuffer.data()), (std::streamsize)fileBuffer.size());
                 size_t bytesRead = (size_t)input->gcount();
 
@@ -69,12 +73,12 @@ private:
             // ACK receive
             if (!window.empty()) {
                 socket.setTimeout(DELAY);
-
                 std::vector<uint8_t> ackBuf;
                 ssize_t n = socket.receive(ackBuf);
 
                 if (n > 0) {
-                        do {
+                    socket.setTimeout(FAST_RECV_DELAY);
+                    do {
                         RDTPacket res;
                         if (res.deserialize(ackBuf.data(), ackBuf.size()) && (res.header.flags & FLAG_ACK)) {
                             // Confirm the new data
@@ -92,9 +96,7 @@ private:
                                 }
                             }
                         }
-                            // Check for the other ACKs in short time
-                            socket.setTimeout(0.001);
-                        } while (socket.receive(ackBuf) > 0);
+                    } while (socket.receive(ackBuf) > 0);
                     // Handle timeout
                 } else if (n == -1) {
                     if (!window.empty()) {
