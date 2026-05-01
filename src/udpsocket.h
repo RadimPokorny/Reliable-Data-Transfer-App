@@ -33,7 +33,7 @@ public:
         struct addrinfo hints, *res;
         std::memset(&hints, 0, sizeof(hints));
 
-        hints.ai_family = AF_UNSPEC;
+        hints.ai_family = address.empty() ? AF_INET6 : AF_UNSPEC;
         hints.ai_socktype = SOCK_DGRAM;
         hints.ai_flags = AI_PASSIVE;
 
@@ -49,6 +49,11 @@ public:
             fd = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
             if (fd < 0)
                 continue;
+
+            if (ptr->ai_family == AF_INET6) {
+                int no = 0;
+                setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &no, sizeof(no));
+            }
 
             if (::bind(fd, ptr->ai_addr, ptr->ai_addrlen) == 0) {
                 freeaddrinfo(ptr);
@@ -107,6 +112,11 @@ public:
             return -1; // Normal timeout
         }
         if (n > 0) {
+            // Null scope ID for IPv6
+            if (remote_addr.ss_family == AF_INET6) {
+                struct sockaddr_in6* sin6 = (struct sockaddr_in6*)&remote_addr;
+                sin6->sin6_scope_id = 0;
+            }
             buffer.assign(temp, temp + n);
         }
         return n;
