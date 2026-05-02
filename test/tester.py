@@ -6,6 +6,7 @@ import socket
 import random
 import threading
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 BINARY = "./ipk-rdt"
 SERVER_PORT = 5555
@@ -23,6 +24,7 @@ class AdvancedProxy:
         self.dup = dup / 100.0
         self.running = False
         self.client_address = None
+        self.executor = ThreadPoolExecutor(max_workers=20)
 
     def start(self):
         infos = socket.getaddrinfo(self.target_addr, self.target_port, socket.AF_UNSPEC, socket.SOCK_DGRAM)
@@ -36,6 +38,20 @@ class AdvancedProxy:
 
         self.sock.settimeout(0.1)
         self.running = True
+
+        def process_and_send(d, target, apply_faults, wait_time):
+            if apply_faults and self.corrupt > 0 and random.random() < self.corrupt:
+                b_data = bytearray(d)
+                b_data[random.randint(0, len(b_data)-1)] ^= 0xFF
+                d = bytes(b_data)
+
+            if wait_time > 0:
+                time.sleep(max(0, wait_time))
+
+            try:
+                self.sock.sendto(d, target)
+            except:
+                pass
 
         def proxy_loop():
             while self.running:
@@ -56,27 +72,10 @@ class AdvancedProxy:
                     if not is_from_server and self.jitter > 0:
                         current_wait += random.uniform(-self.jitter, self.jitter)
 
-                    def process_and_send(d, target, apply_faults, wait_time):
-                        if apply_faults and self.corrupt > 0 and random.random() < self.corrupt:
-                            b_data = bytearray(d)
-                            b_data[random.randint(0, len(b_data)-1)] ^= 0xFF
-                            d = bytes(b_data)
-
-                        if wait_time > 0:
-                            time.sleep(max(0, wait_time))
-
-                        try:
-                            self.sock.sendto(d, target)
-                        except:
-                            pass
-
                     count = 2 if (not is_from_server and random.random() < self.dup) else 1
                     for _ in range(count):
-                        threading.Thread(
-                            target=process_and_send,
-                            args=(data, dest, not is_from_server, current_wait),
-                            daemon=True
-                        ).start()
+                        self.executor.submit(process_and_send, data, dest, not is_from_server, current_wait)
+
                 except socket.timeout:
                     continue
                 except Exception:
@@ -86,6 +85,7 @@ class AdvancedProxy:
 
     def stop(self):
         self.running = False
+        self.executor.shutdown(wait=False)
         time.sleep(0.3)
         if hasattr(self, 'sock'):
             self.sock.close()
@@ -160,30 +160,30 @@ def run_scenario(name, size_mb, loss=0, delay=0, jitter=0, corrupt=0, dup=0, ipv
     return passed
 
 if __name__ == "__main__":
-    print("\n  IPK-RDT COMPREHENSIVE TESTER")
+    print("\n  Student automated tests:")
     print("  " + "─" * 50)
 
     results = [
-        run_scenario("IPv4_Clean", 0.5),
-        run_scenario("IPv6_Clean", 0.5, ipv6=True),
-        run_scenario("Empty_File", 0),
-        run_scenario("1MB File", 1),
-        run_scenario("2MB File", 2),
-        run_scenario("5MB File", 5),
-        run_scenario("10MB File", 10),
-        run_scenario("20MB File", 20),
-        run_scenario("50MB File", 50),
-        run_scenario("100MB File", 100),
-        run_scenario("Pipes_Test", 0.2, use_pipes=True),
-        run_scenario("High_Loss_15%", 0.3, loss=15),
-        run_scenario("Duplication", 0.3, dup=15),
-        run_scenario("Jitter_Reorder", 0.3, delay=20, jitter=20),
-        run_scenario("Corruption", 0.2, corrupt=2),
-        run_scenario("Stress_Big", 2.0, loss=5, delay=10, dup=5),
-        run_scenario("Hell_Mode", 0.5, loss=10, delay=30, jitter=20, corrupt=1, dup=10)
+        run_scenario("IPv4_Baseline", 0.5),
+        run_scenario("IPv6_Baseline", 0.5, ipv6=True),
+        run_scenario("EmptyInput_File", 0),
+        run_scenario("Transfer_1MB", 1),
+        run_scenario("Transfer_2MB", 2),
+        run_scenario("Transfer_5MB", 5),
+        run_scenario("Transfer_10MB", 10),
+        run_scenario("Transfer_20MB", 20),
+        run_scenario("Transfer_50MB", 50),
+        run_scenario("Transfer_100MB", 100),
+        run_scenario("Pipes_Mode_Test", 0.2, use_pipes=True),
+        run_scenario("PacketLoss_15pct", 0.3, loss=15),
+        run_scenario("Duplication_15pct", 0.3, dup=15),
+        run_scenario("Jitter_Reorder_Test", 0.3, delay=20, jitter=20),
+        run_scenario("Corruption_2pct", 0.2, corrupt=2),
+        run_scenario("Stress_Test_Heavy", 2.0, loss=5, delay=10, dup=5),
+        run_scenario("Extreme_Stress_Mode", 0.5, loss=10, delay=30, jitter=20, corrupt=1, dup=10)
     ]
 
     print("  " + "─" * 50)
     print(f"  Final Score: {sum(results)}/{len(results)}")
-    if all(results): print("  ALL CRITERIA MET! 🚀")
+    if all(results): print("  ALL TESTS PASSED!")
     sys.exit(0 if all(results) else 1)
