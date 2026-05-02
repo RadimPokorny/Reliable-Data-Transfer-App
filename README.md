@@ -34,7 +34,37 @@ make test
 ## Implementation details
 
 ### Datagram flow diagram
-![State Machine](img/state-diagram.png)
+```mermaid
+stateDiagram-v2
+    [*] --> CLOSED
+    
+    state "CLIENT (Sender)" as Client {
+        CLOSED --> SYN_SENT : [Start] Send SYN (S1)
+        SYN_SENT --> ESTABLISHED_CL : Recv SYN-ACK (S3) + Send ACK (S2)
+        
+        state ESTABLISHED_CL {
+            [*] --> SEND_DATA
+            SEND_DATA --> SEND_DATA : Send Data (F0) / Recv ACK (S2)
+        }
+        
+        ESTABLISHED_CL --> FIN_WAIT : All Data Sent / Send FIN (S4)
+        FIN_WAIT --> CLOSED : Recv ACK (S2)
+    }
+
+    state "SERVER (Receiver)" as Server {
+        CLOSED --> LISTEN : Bind(Port)
+        LISTEN --> SYN_RCVD : Recv SYN (S1) / Send SYN-ACK (S3)
+        SYN_RCVD --> DATA_PROCESS : Recv ACK (S2) or Data (F0)
+        
+        state DATA_PROCESS {
+            [*] --> RECEIVE
+            RECEIVE --> RECEIVE : Recv Data (F0) / Send ACK (S2)
+        }
+        
+        DATA_PROCESS --> CLOSED_SRV : Recv FIN (S4) / Send ACK (S2)
+        CLOSED_SRV --> [*] : Wait 0.2s (Timeout)
+    }
+```
 
 ### Protocol packet/header format
 Header of the packet has a
@@ -71,6 +101,38 @@ by 1 for each subsequent data segment).
 This allows the receiver to reassemble the file 
 even if **UDP datagrams** arrive out of order.
 
+### Sequence diagram
+There is a small demonstration of the server-client communication, where is 
+simulated a packet loss.
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+
+    Note over C,S: --- Handshake ---
+    C->>S: SYN (Flag 1, seq=0, conn_id=XYZ)
+    S->>C: SYN-ACK (Flag 3, ack=1, conn_id=XYZ)
+    C->>S: ACK (Flag 2, ack=1)
+
+    Note over C,S: --- Packet loss transfer ---
+    C->>S: Data Packet 1 (seq=1)
+    S->>C: ACK 2 (Waiting for the next 2)
+    C-xS: Data Packet 2 (LOST)
+    C->>S: Data Packet 3 (seq=3)
+    Note right of S: Save Packet to the Buffer (out-of-order)
+    S->>C: ACK 2 (Still waiting for 2 (DUPL. ACK))
+    
+    Note over C: Timeout or 3x DupACK
+    C->>S: Retransmit Packet 2 (seq=2)
+    Note right of S: Packet 2 received, merge with packet 3
+    S->>C: ACK 4 (Confirmed after the 3)
+
+    Note over C,S: --- Terminate Connection ---
+    C->>S: FIN (Flag 4, seq=N)
+    S->>C: ACK (Flag 2, ack=N+1)
+    Note right of S: Wait 0.2s and Close
+    Note left of C: Close
+```
 
 * **Acknowledgement:**
 We utilize a Cumulative Acknowledgement strategy. When the receiver accepts 
