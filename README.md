@@ -32,6 +32,10 @@ make test
 ```
 
 ## Implementation details
+
+### Datagram flow diagram
+![State Machine](img/state-diagram.png)
+
 ### Protocol packet/header format
 Header of the packet has a
 * 32 bit sequence number
