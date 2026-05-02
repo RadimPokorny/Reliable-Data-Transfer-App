@@ -17,7 +17,7 @@ NixDevShellName:
 $(PROXY_BIN): test/test_ipk_rdt.c
 	gcc -O2 test/test_ipk_rdt.c -o $(PROXY_BIN) -lpthread
 
-test: $(TARGET)
+test: clean $(TARGET)
 	python3 test/tester.py
 
 clean:
