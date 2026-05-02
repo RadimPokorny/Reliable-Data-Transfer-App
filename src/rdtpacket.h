@@ -2,6 +2,11 @@
 // Created by radim on 04.04.2026.
 //
 
+// In this program, pseudocode for calculating a checksum was copied
+// and then optimized using AI into C++.
+// AI was also used for specific network and memory functions in C++,
+// where the student translated his ideas into code.
+
 #ifndef IPK_PROJ2_RDTHEADER_H
 #define IPK_PROJ2_RDTHEADER_H
 #include <cstdint>

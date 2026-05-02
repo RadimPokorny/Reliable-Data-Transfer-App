@@ -2,6 +2,9 @@
 // Created by radim on 03.04.2026.
 //
 
+// Similar to client.h, AI was used here for file-reading functions
+// and for gradually correcting logic errors in the loop.
+
 #ifndef IPK_PROJ2_SERVER_H
 #define IPK_PROJ2_SERVER_H
 #include <fstream>

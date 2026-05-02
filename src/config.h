@@ -2,6 +2,9 @@
 // Created by radim on 09.04.2026.
 //
 
+// This program adopted a similar approach to handling arguments from the first project,
+// and the AI helped transform (optimize) the code from C to C++.
+
 #ifndef IPK_PROJ2_CONFIG_H
 #define IPK_PROJ2_CONFIG_H
 

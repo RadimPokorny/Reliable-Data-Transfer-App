@@ -2,6 +2,11 @@
 // Created by radim on 08.04.2026.
 //
 
+// Here, some parts of the code from the first project
+// were copied again and then transformed and optimized using AI.
+// The AI also helped write some network-related commands,
+// preventing memory leaks and operations with incorrect data types.
+
 #ifndef IPK_PROJ2_UDPSOCKET_H
 #define IPK_PROJ2_UDPSOCKET_H
 

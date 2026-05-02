@@ -2,6 +2,8 @@
 // Created by radim on 04.04.2026.
 //
 
+// This protocol program was written only by a student
+
 #ifndef IPK_PROJ2_RDT_PROTOCOL_H
 #define IPK_PROJ2_RDT_PROTOCOL_H
 

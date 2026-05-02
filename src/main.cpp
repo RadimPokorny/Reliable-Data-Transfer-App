@@ -2,6 +2,8 @@
 // Created by radim on 03.04.2026.
 //
 
+// This simple program was written only by a student
+
 #include <iostream>
 #include "config.h"
 #include "server.h"

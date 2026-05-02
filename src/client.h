@@ -2,6 +2,11 @@
 // Created by radim on 03.04.2026.
 //
 
+// This program was developed by a student,
+// and AI was used primarily to provide explanations during development—for example,
+// when the sliding window logic got stuck. Some parts of the code,
+// such as generating random numbers or preparing a file for processing.
+
 #ifndef IPK_PROJ2_CLIENT_H
 #define IPK_PROJ2_CLIENT_H
 #include "udpsocket.h"
