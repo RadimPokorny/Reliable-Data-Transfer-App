@@ -184,9 +184,8 @@ public:
         if (!connected) {
             return;
         }
-        else {
-            sendFile(socket, config, synPacket.header.conn_id, synPacket.header.seq_number + 1);
-        }
+
+        sendFile(socket, config, synPacket.header.conn_id, synPacket.header.seq_number + 1);
     }
 };
 
