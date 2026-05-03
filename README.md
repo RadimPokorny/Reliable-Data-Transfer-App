@@ -6,6 +6,12 @@ This application is implemented in C++ and is object-oriented. The main task was
 implement the sliding window in client-cerver communication with a goal to
 make the communication as fast as possible. 
 
+## Mechanism selection
+I chose Selective Repeat for its efficiency. Unlike Go-Back-N, it allows the 
+receiver to buffer out-of-order packets and explicitly acknowledge them. 
+This ensures that the sender retransmits only the specific missing segments 
+instead of resending the entire window.
+
 ## Build and Run Instructions
 ### Prerequisites
 * **Operating System:** Linux (tested on x86_64).
@@ -217,7 +223,7 @@ with zero overhead, correctly handling both standard data and empty files.
 
 
 * **Network Impairments:** Under simulated loss (5–15%), 
-the Selective Repeat/Stop-and-Wait logic successfully recovered all missing segments 
+the Selective Repeat logic successfully recovered all missing segments 
 through retransmissions.
 
 
