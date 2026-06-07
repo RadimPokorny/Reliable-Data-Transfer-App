@@ -1,4 +1,7 @@
 # IPK Project 2 - RDT Application
+
+## Disclaimer: This repository has been cloned from the school GIT and it's forbidden to use this code in your school project!
+
 ## Author: Radim Pokorný (xpokorr00)
 
 ## Project Overview
